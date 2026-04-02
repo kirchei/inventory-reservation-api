@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.DS_Store
+.vercel
+.claude
+openspec
+NEXT_STEPS.md
+Take-Home Assignment Instructions.pdf
