@@ -207,6 +207,7 @@ PENDING ──► CONFIRMED  (confirm: reserved → confirmed)
 
 - **No authentication** — Any caller can access all endpoints (out of scope)
 - **No background expiration** — Expired reservations are only released when the maintenance endpoint is called, or when a stale reservation is confirmed (auto-expire). An external cron could automate this.
+- **No restocking** — Item `total_quantity` is set at creation and cannot be updated. Once all units are confirmed, the item is permanently exhausted
 - **No pagination** — Item/reservation listing endpoints not implemented
 - **No rate limiting** — Could be added as middleware if needed
 - **Vercel cold starts** — First request after inactivity may be slower due to serverless cold start

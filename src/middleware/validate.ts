@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { ZodSchema } from "zod";
+import { ZodSchema, ZodError } from "zod";
 
 export function validateBody(schema: ZodSchema) {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -7,9 +7,12 @@ export function validateBody(schema: ZodSchema) {
       req.body = schema.parse(req.body);
       next();
     } catch (err) {
-      if (err instanceof Error && "issues" in err) {
-        const issues = (err as { issues: Array<{ message: string }> }).issues;
-        const message = issues.map((e) => e.message).join(", ");
+      if (err instanceof ZodError) {
+        const message = err.issues
+          .map((issue) => issue.path.length > 0
+            ? `${issue.path.join(".")}: ${issue.message}`
+            : issue.message)
+          .join(", ");
         res.status(400).json({ success: false, error: message });
         return;
       }
@@ -24,9 +27,12 @@ export function validateParams(schema: ZodSchema) {
       req.params = schema.parse(req.params) as typeof req.params;
       next();
     } catch (err) {
-      if (err instanceof Error && "issues" in err) {
-        const issues = (err as { issues: Array<{ message: string }> }).issues;
-        const message = issues.map((e) => e.message).join(", ");
+      if (err instanceof ZodError) {
+        const message = err.issues
+          .map((issue) => issue.path.length > 0
+            ? `${issue.path.join(".")}: ${issue.message}`
+            : issue.message)
+          .join(", ");
         res.status(400).json({ success: false, error: message });
         return;
       }

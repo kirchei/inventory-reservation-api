@@ -1,11 +1,14 @@
 import { z } from "zod";
 
+const MAX_INT32 = 2_147_483_647;
+
 export const createItemSchema = z.object({
   name: z.string().min(1, "Name is required"),
   initial_quantity: z
     .number()
     .int("Quantity must be an integer")
-    .positive("Quantity must be greater than 0"),
+    .positive("Quantity must be greater than 0")
+    .max(MAX_INT32, "Quantity exceeds maximum allowed value"),
 });
 
 export const createReservationSchema = z.object({
@@ -14,7 +17,8 @@ export const createReservationSchema = z.object({
   quantity: z
     .number()
     .int("Quantity must be an integer")
-    .positive("Quantity must be greater than 0"),
+    .positive("Quantity must be greater than 0")
+    .max(MAX_INT32, "Quantity exceeds maximum allowed value"),
 });
 
 export const uuidParamSchema = z.object({

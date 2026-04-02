@@ -5,34 +5,35 @@ import {
   expireReservations as repoExpire,
   findReservationById,
 } from "../repositories";
+import {
+  InsufficientInventoryError,
+  ItemNotFoundError,
+  ReservationNotFoundError,
+  InvalidStateTransitionError,
+} from "../errors";
 import type { ReservationResponse, ExpireReservationsResponse } from "../types";
 
-export class InsufficientInventoryError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "InsufficientInventoryError";
+function mapRpcError(err: unknown): never {
+  const message = err instanceof Error ? err.message : String(err);
+  if (message.startsWith("ITEM_NOT_FOUND:")) {
+    throw new ItemNotFoundError("Item not found");
   }
-}
-
-export class ItemNotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ItemNotFoundError";
+  if (message.startsWith("INSUFFICIENT_INVENTORY:")) {
+    throw new InsufficientInventoryError("Insufficient inventory available");
   }
-}
-
-export class ReservationNotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ReservationNotFoundError";
+  if (message.startsWith("RESERVATION_NOT_FOUND:")) {
+    throw new ReservationNotFoundError("Reservation not found");
   }
-}
-
-export class InvalidStateTransitionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "InvalidStateTransitionError";
+  if (message.startsWith("EXPIRED:")) {
+    throw new InvalidStateTransitionError("Reservation has expired");
   }
+  if (message.startsWith("CANCELLED:")) {
+    throw new InvalidStateTransitionError("Reservation was cancelled");
+  }
+  if (message.startsWith("CONFIRMED:")) {
+    throw new InvalidStateTransitionError("Reservation was already confirmed");
+  }
+  throw err;
 }
 
 export async function createReservation(
@@ -53,15 +54,7 @@ export async function createReservation(
       updated_at: reservation.updated_at,
     };
   } catch (err: unknown) {
-    const message =
-      err instanceof Error ? err.message : String(err);
-    if (message.includes("ITEM_NOT_FOUND")) {
-      throw new ItemNotFoundError("Item not found");
-    }
-    if (message.includes("INSUFFICIENT_INVENTORY")) {
-      throw new InsufficientInventoryError("Insufficient inventory available");
-    }
-    throw err;
+    return mapRpcError(err);
   }
 }
 
@@ -73,6 +66,7 @@ export async function confirmReservation(
     throw new ReservationNotFoundError("Reservation not found");
   }
 
+  // Idempotent: already confirmed — return current state
   if (existing.status === "CONFIRMED") {
     return existing;
   }
@@ -88,22 +82,20 @@ export async function confirmReservation(
   try {
     await repoConfirm(reservationId);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("ALREADY_CONFIRMED")) {
-      const updated = await findReservationById(reservationId);
-      return updated!;
-    }
-    if (
-      message.includes("EXPIRED") ||
-      message.includes("CANCELLED")
-    ) {
-      throw new InvalidStateTransitionError(message);
-    }
-    throw err;
+    return mapRpcError(err);
   }
 
   const updated = await findReservationById(reservationId);
-  return updated!;
+  if (!updated) throw new ReservationNotFoundError("Reservation not found");
+
+  // The RPC auto-expires PENDING reservations past their TTL instead of
+  // confirming them. It returns normally (not an exception) so the expire
+  // commits durably. We detect it here and reject the confirmation.
+  if (updated.status === "EXPIRED") {
+    throw new InvalidStateTransitionError("Reservation has expired");
+  }
+
+  return updated;
 }
 
 export async function cancelReservation(
@@ -114,34 +106,24 @@ export async function cancelReservation(
     throw new ReservationNotFoundError("Reservation not found");
   }
 
+  // Idempotent: already cancelled or expired (hold already released)
   if (existing.status === "CANCELLED" || existing.status === "EXPIRED") {
     return existing;
   }
 
   if (existing.status === "CONFIRMED") {
-    throw new InvalidStateTransitionError(
-      "Reservation was already confirmed"
-    );
+    throw new InvalidStateTransitionError("Reservation was already confirmed");
   }
 
   try {
     await repoCancel(reservationId);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("ALREADY_CANCELLED") || message.includes("EXPIRED")) {
-      const updated = await findReservationById(reservationId);
-      return updated!;
-    }
-    if (message.includes("CONFIRMED")) {
-      throw new InvalidStateTransitionError(
-        "Reservation was already confirmed"
-      );
-    }
-    throw err;
+    return mapRpcError(err);
   }
 
   const updated = await findReservationById(reservationId);
-  return updated!;
+  if (!updated) throw new ReservationNotFoundError("Reservation not found");
+  return updated;
 }
 
 export async function expireStaleReservations(): Promise<ExpireReservationsResponse> {

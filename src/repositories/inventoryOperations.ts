@@ -75,5 +75,6 @@ export async function expireReservations(): Promise<number> {
   const { data, error } = await supabase.rpc("expire_stale_reservations");
 
   if (error) throw new Error(error.message);
-  return (data as ExpireResult).expired_count;
+  const result = data as ExpireResult | null;
+  return result?.expired_count ?? 0;
 }

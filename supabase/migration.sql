@@ -206,7 +206,9 @@ BEGIN
         RAISE EXCEPTION 'CANCELLED: Reservation was cancelled';
     END IF;
 
-    -- PENDING but past TTL: auto-expire instead of confirming
+    -- PENDING but past TTL: auto-expire instead of confirming.
+    -- Uses RETURN (not RAISE EXCEPTION) so the UPDATEs commit durably.
+    -- The service layer detects the EXPIRED status and returns a 409.
     IF v_reservation.expires_at < NOW() THEN
         UPDATE items
         SET reserved_quantity = reserved_quantity - v_reservation.quantity
@@ -214,9 +216,16 @@ BEGIN
 
         UPDATE reservations
         SET status = 'EXPIRED'
-        WHERE id = p_reservation_id;
+        WHERE id = p_reservation_id
+        RETURNING * INTO v_reservation;
 
-        RAISE EXCEPTION 'EXPIRED: Reservation has expired';
+        RETURN json_build_object(
+            'reservation_id', v_reservation.id,
+            'status', v_reservation.status,
+            'quantity', v_reservation.quantity,
+            'item_id', v_reservation.item_id,
+            'updated_at', v_reservation.updated_at
+        );
     END IF;
 
     -- Transfer reserved → confirmed
@@ -320,6 +329,9 @@ BEGIN
           AND r.expires_at < NOW()
         FOR UPDATE OF r
     LOOP
+        -- Lock the item row before updating (consistent with other functions)
+        PERFORM 1 FROM items WHERE id = v_reservation.item_id FOR UPDATE;
+
         UPDATE items
         SET reserved_quantity = reserved_quantity - v_reservation.quantity
         WHERE id = v_reservation.item_id;

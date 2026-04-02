@@ -1,7 +1,4 @@
-import swaggerJsdoc from "swagger-jsdoc";
-
-const options: swaggerJsdoc.Options = {
-  definition: {
+export const swaggerSpec = {
     openapi: "3.0.0",
     info: {
       title: "Inventory Reservation API",
@@ -98,6 +95,14 @@ const options: swaggerJsdoc.Options = {
                 },
               },
             },
+            "400": {
+              description: "Validation error",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
             "404": {
               description: "Item not found",
               content: {
@@ -150,6 +155,14 @@ const options: swaggerJsdoc.Options = {
                 },
               },
             },
+            "400": {
+              description: "Validation error",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
             "404": {
               description: "Item not found",
               content: {
@@ -199,6 +212,14 @@ const options: swaggerJsdoc.Options = {
                 },
               },
             },
+            "400": {
+              description: "Validation error",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
             "404": {
               description: "Reservation not found",
               content: {
@@ -245,6 +266,14 @@ const options: swaggerJsdoc.Options = {
                       },
                     },
                   },
+                },
+              },
+            },
+            "400": {
+              description: "Validation error",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
                 },
               },
             },
@@ -335,8 +364,6 @@ const options: swaggerJsdoc.Options = {
         },
       },
     },
-  },
-  apis: [],
 };
 
-export const swaggerSpec = swaggerJsdoc(options);
+

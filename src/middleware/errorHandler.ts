@@ -4,7 +4,7 @@ import {
   ItemNotFoundError,
   ReservationNotFoundError,
   InvalidStateTransitionError,
-} from "../services";
+} from "../errors";
 import type { ApiErrorResponse } from "../types";
 
 export function errorHandler(
