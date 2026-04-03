@@ -2,7 +2,7 @@
 
 > **Deployed URL:** https://inventory-system-three-murex.vercel.app
 >
-> **Demo Video:** `<TODO: paste video link here>`
+> **Demo Video:** https://drive.google.com/file/d/1LqlU344E8VMHBaF4Kd8i9Cgyu39S_lqn/view?usp=share_link
 
 A concurrency-safe REST API for managing inventory items and temporary reservations, built with Express.js, TypeScript, and Supabase (PostgreSQL). Deployed as serverless functions on Vercel.
 
