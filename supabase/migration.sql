@@ -35,6 +35,15 @@ CREATE TABLE items (
         CHECK (reserved_quantity + confirmed_quantity <= total_quantity)
 );
 
+COMMENT ON TABLE  items IS 'Inventory items available for reservation.';
+COMMENT ON COLUMN items.id IS 'Unique identifier (UUID v4, auto-generated).';
+COMMENT ON COLUMN items.name IS 'Human-readable product name.';
+COMMENT ON COLUMN items.total_quantity IS 'Maximum units available. Set at creation, immutable.';
+COMMENT ON COLUMN items.reserved_quantity IS 'Units currently held in PENDING reservations. Denormalized counter maintained by RPC functions.';
+COMMENT ON COLUMN items.confirmed_quantity IS 'Units permanently deducted by CONFIRMED reservations. Denormalized counter maintained by RPC functions.';
+COMMENT ON COLUMN items.created_at IS 'Row creation timestamp.';
+COMMENT ON COLUMN items.updated_at IS 'Last modification timestamp (auto-updated by trigger).';
+
 
 -- -----------------------------------------------------------------------------
 -- 3. Reservations table
@@ -56,6 +65,17 @@ CREATE TABLE reservations (
     CONSTRAINT reservations_pkey PRIMARY KEY (id)
 );
 
+COMMENT ON TABLE  reservations IS 'Customer reservations against inventory items. Status lifecycle: PENDING → CONFIRMED | CANCELLED | EXPIRED.';
+COMMENT ON COLUMN reservations.id IS 'Unique identifier (UUID v4, auto-generated).';
+COMMENT ON COLUMN reservations.item_id IS 'Foreign key to items table. CASCADE on delete.';
+COMMENT ON COLUMN reservations.customer_id IS 'External customer identifier.';
+COMMENT ON COLUMN reservations.quantity IS 'Number of units reserved. Must be > 0.';
+COMMENT ON COLUMN reservations.status IS 'Current state: PENDING (active hold), CONFIRMED (permanent deduction), CANCELLED (released), EXPIRED (TTL exceeded, released).';
+COMMENT ON COLUMN reservations.created_at IS 'Row creation timestamp.';
+COMMENT ON COLUMN reservations.expires_at IS 'Reservation TTL. PENDING reservations past this time are eligible for expiration.';
+COMMENT ON COLUMN reservations.updated_at IS 'Last modification timestamp (auto-updated by trigger).';
+
+
 
 -- -----------------------------------------------------------------------------
 -- 4. Indexes
@@ -68,6 +88,9 @@ CREATE INDEX idx_reservations_item_status
 -- Supports: WHERE status = 'PENDING' AND expires_at <= NOW()
 CREATE INDEX idx_reservations_status_expires
     ON reservations(status, expires_at);
+
+COMMENT ON INDEX idx_reservations_item_status IS 'Supports lookups by item and status (e.g., all PENDING reservations for an item).';
+COMMENT ON INDEX idx_reservations_status_expires IS 'Supports the expiration query: WHERE status = PENDING AND expires_at < NOW().';
 
 
 -- -----------------------------------------------------------------------------

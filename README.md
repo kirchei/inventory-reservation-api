@@ -203,6 +203,28 @@ PENDING ──► CONFIRMED  (confirm: reserved → confirmed)
    └──► EXPIRED       (maintenance OR auto-expire on confirm attempt)
 ```
 
+## Architecture Decisions
+
+### Why PostgreSQL row-level locking instead of optimistic locking?
+
+Optimistic locking (version column + retry loop) requires the application to handle retries, adding complexity. `SELECT ... FOR UPDATE` serializes concurrent access at the database level — simpler, correct by construction, and no retry logic needed. The trade-off is slightly higher latency under contention, which is acceptable for this use case.
+
+### Why denormalized counters on the items table?
+
+Storing `reserved_quantity` and `confirmed_quantity` directly on items avoids a `SUM()` aggregation across the reservations table on every status check. The counters are safe because all mutations happen inside locked transactions. The `CHECK (reserved_quantity + confirmed_quantity <= total_quantity)` constraint acts as a database-level backstop — even a bug in the application code cannot violate inventory integrity.
+
+### Why PL/pgSQL functions instead of multi-statement transactions?
+
+Supabase's JS client uses PostgREST (HTTP/REST), which doesn't support multi-statement transactions. Each `.from()` call is an independent HTTP request. By placing the lock-check-update logic inside PostgreSQL functions and calling them via `supabase.rpc()`, each call executes as a single atomic transaction. This is the canonical pattern for concurrency-safe operations with Supabase.
+
+### Why auto-expire on confirm?
+
+If a reservation's TTL has passed but the maintenance endpoint hasn't been called, the reservation is still PENDING in the database. Without the auto-expire check, a confirm call would succeed — permanently deducting inventory that should have been released. The `confirm_reservation` function checks `expires_at < NOW()` and atomically expires the reservation if it's stale, preventing this edge case.
+
+### Why TEXT + CHECK instead of ENUM for status?
+
+PostgreSQL ENUMs require an `ALTER TYPE` migration to add new values, which can be problematic in production. A TEXT column with a CHECK constraint is equally type-safe at the database level but simpler to evolve.
+
 ## Limitations
 
 - **No authentication** — Any caller can access all endpoints (out of scope)
